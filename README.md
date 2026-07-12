@@ -1,7 +1,7 @@
 # LitePhospho — Explainable Phosphosite Predictor (live demo)
 
 [![CI](https://github.com/karimulislambd/litephospho-demo/actions/workflows/ci.yml/badge.svg)](https://github.com/karimulislambd/litephospho-demo/actions/workflows/ci.yml)
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](#)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Streamlit-FF4B4B?logo=streamlit&logoColor=white)](https://litephospho-demo-karimulislambd.streamlit.app/)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.21290440-blue)](https://doi.org/10.5281/zenodo.21290440)
 
@@ -12,7 +12,7 @@ This is the **interactive demo** for my first-author thesis model, **LitePhospho
 research code, data, and paper live in a separate, citable repository (see the DOI badge);
 this app makes the trained model something anyone can *use in the browser*.
 
-**Live demo:** _add your Streamlit URL here_
+**Live demo:** https://litephospho-demo-karimulislambd.streamlit.app/
 
 ---
 
