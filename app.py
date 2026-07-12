@@ -9,7 +9,7 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from litephospho.predictor import SITES, predict_sequence
+from litephospho.predictor import SITES, explain, predict_sequence
 
 st.set_page_config(
     page_title="LitePhospho — Phosphosite Predictor",
@@ -47,14 +47,13 @@ def _render_sequence(seq: str, preds, threshold: float) -> str:
     )
 
 
-def _render_importance(pred) -> str:
+def _render_importance(window: str, imp: list[float]) -> str:
     """Render the 31-residue window coloured by occlusion importance."""
-    imp = pred.importance
     if not imp:
         return ""
     hi = max(max(imp), 1e-6)
     cells = []
-    for j, (aa, v) in enumerate(zip(pred.window, imp, strict=False)):
+    for j, (aa, v) in enumerate(zip(window, imp, strict=False)):
         offset = j - 15
         alpha = max(0.0, v / hi) * 0.85
         bg = f"rgba(34,197,94,{alpha:.2f})" if v > 0 else "transparent"
@@ -117,7 +116,7 @@ def main():
             st.warning("Paste a protein sequence first, or load the example.")
         else:
             with st.spinner("Running LitePhospho…"):
-                st.session_state.preds = predict_sequence(seq, threshold=threshold, explain=True)
+                st.session_state.preds = predict_sequence(seq, threshold=threshold)
                 st.session_state.pred_seq = "".join(c for c in seq.upper() if c.isalpha())
 
     # --- Render results from session state (survives selectbox / threshold reruns) ---
@@ -161,7 +160,10 @@ def main():
     )
     labels = {f"pos {p.position} ({p.residue}) — {p.probability:.2f}": p for p in preds}
     choice = st.selectbox("Choose a site to explain", list(labels.keys()))
-    st.markdown(_render_importance(labels[choice]), unsafe_allow_html=True)
+    chosen = labels[choice]
+    with st.spinner("Explaining…"):
+        imp = explain(chosen)
+    st.markdown(_render_importance(chosen.window, imp), unsafe_allow_html=True)
 
 
 if __name__ == "__main__":

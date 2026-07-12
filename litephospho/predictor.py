@@ -39,7 +39,16 @@ class SitePrediction:
 
 @lru_cache(maxsize=1)
 def _session() -> ort.InferenceSession:
-    return ort.InferenceSession(str(MODEL_PATH), providers=["CPUExecutionProvider"])
+    # Single-threaded, sequential execution. onnxruntime's default thread pool can
+    # segfault under the constrained, multi-tenant CPU of free hosting; one thread
+    # is plenty for this ~0.44M-param model and is far more stable.
+    opts = ort.SessionOptions()
+    opts.intra_op_num_threads = 1
+    opts.inter_op_num_threads = 1
+    opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    return ort.InferenceSession(
+        str(MODEL_PATH), sess_options=opts, providers=["CPUExecutionProvider"]
+    )
 
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:
@@ -91,9 +100,14 @@ def _occlusion(window: str, base_prob: float) -> list[float]:
 
 
 def predict_sequence(
-    seq: str, threshold: float = 0.5, explain: bool = True
+    seq: str, threshold: float = 0.5, explain: bool = False
 ) -> list[SitePrediction]:
-    """Predict phosphorylation for every S/T/Y site in a protein sequence."""
+    """Predict phosphorylation for every S/T/Y site in a protein sequence.
+
+    `explain=False` by default: the occlusion explanation is expensive (31 masked
+    inferences per site), so the UI computes it lazily for the selected site only
+    via `explain()`. Pass `explain=True` to compute it for every site up front.
+    """
     seq = _clean(seq)
     sites = _windows_for(seq)
     if not sites:
@@ -113,3 +127,13 @@ def predict_sequence(
             pred.importance = _occlusion(window, float(p))
         results.append(pred)
     return results
+
+
+@lru_cache(maxsize=512)
+def _explain_cached(window: str, base_prob: float) -> tuple[float, ...]:
+    return tuple(_occlusion(window, base_prob))
+
+
+def explain(pred: SitePrediction) -> list[float]:
+    """Occlusion importance for a single predicted site — computed lazily + cached."""
+    return list(_explain_cached(pred.window, round(pred.probability, 6)))
