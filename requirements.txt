@@ -1,0 +1,11 @@
+# --- inference (lightweight: ONNX Runtime, no PyTorch) ---
+onnxruntime==1.20.1
+numpy==1.26.4
+pandas==2.2.3
+
+# --- UI ---
+streamlit==1.40.2
+
+# --- dev / test ---
+pytest==8.3.4
+ruff==0.8.4
