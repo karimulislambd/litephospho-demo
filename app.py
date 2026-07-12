@@ -21,22 +21,22 @@ st.set_page_config(
 EXAMPLE = "MEEPQSDPSVEPPLSQETFSDLWKLLPENNVLSPLPSQAMDDLMLSPDDIEQWFTEDPGP"
 
 
-def _prob_color(p: float) -> str:
-    # green intensity by probability
-    if p >= 0.5:
-        return f"rgba(34,197,94,{0.25 + 0.6 * (p - 0.5) * 2:.2f})"
+def _prob_color(p: float, threshold: float) -> str:
+    if p >= threshold:
+        span = max(1e-6, 1.0 - threshold)
+        return f"rgba(34,197,94,{0.25 + 0.6 * min(1.0, (p - threshold) / span):.2f})"
     return "transparent"
 
 
-def _render_sequence(seq: str, preds) -> str:
+def _render_sequence(seq: str, preds, threshold: float) -> str:
     prob_at = {p.position: p.probability for p in preds}
     out = []
     for i, aa in enumerate(seq, start=1):
         if aa in SITES and i in prob_at:
             p = prob_at[i]
-            weight = "700" if p >= 0.5 else "400"
+            weight = "700" if p >= threshold else "400"
             out.append(
-                f"<span title='pos {i}: {p:.2f}' style='background:{_prob_color(p)};"
+                f"<span title='pos {i}: {p:.2f}' style='background:{_prob_color(p, threshold)};"
                 f"font-weight:{weight};border-radius:3px;padding:0 1px'>{aa}</span>"
             )
         else:
@@ -56,7 +56,6 @@ def _render_importance(pred) -> str:
     cells = []
     for j, (aa, v) in enumerate(zip(pred.window, imp, strict=False)):
         offset = j - 15
-        # green = residue supported the prediction (removing it dropped the score)
         alpha = max(0.0, v / hi) * 0.85
         bg = f"rgba(34,197,94,{alpha:.2f})" if v > 0 else "transparent"
         border = "2px solid #8b7cff" if offset == 0 else "1px solid #33334a"
@@ -84,9 +83,7 @@ def _sidebar():
         )
         st.divider()
         st.caption("From the LitePhospho thesis (first author).")
-        st.markdown(
-            "[Research repo & DOI](https://doi.org/10.5281/zenodo.21290440)"
-        )
+        st.markdown("[Research repo & DOI](https://doi.org/10.5281/zenodo.21290440)")
         return st.slider("Decision threshold", 0.0, 1.0, 0.5, 0.05)
 
 
@@ -98,8 +95,10 @@ def main():
         "with a per-site explanation of which residues drove the prediction."
     )
 
-    if "seq" not in st.session_state:
-        st.session_state.seq = ""
+    # Persist results across reruns so changing the threshold/selectbox does not reset.
+    st.session_state.setdefault("seq", "")
+    st.session_state.setdefault("preds", None)
+    st.session_state.setdefault("pred_seq", "")
 
     col1, col2 = st.columns([4, 1])
     with col2:
@@ -113,29 +112,31 @@ def main():
             placeholder="e.g. MEEPQSDPSVEPPLSQETFSDLWKLL…",
         )
 
-    if not st.button("Predict phosphosites", type="primary"):
-        return
-    if not seq.strip():
-        st.warning("Paste a protein sequence first, or load the example.")
-        return
+    if st.button("Predict phosphosites", type="primary"):
+        if not seq.strip():
+            st.warning("Paste a protein sequence first, or load the example.")
+        else:
+            with st.spinner("Running LitePhospho…"):
+                st.session_state.preds = predict_sequence(seq, threshold=threshold, explain=True)
+                st.session_state.pred_seq = "".join(c for c in seq.upper() if c.isalpha())
 
-    with st.spinner("Running LitePhospho…"):
-        preds = predict_sequence(seq, threshold=threshold, explain=True)
-
-    clean_len = sum(1 for c in seq.upper() if c.isalpha())
+    # --- Render results from session state (survives selectbox / threshold reruns) ---
+    preds = st.session_state.preds
+    if preds is None:
+        return
     if not preds:
         st.info("No S/T/Y residues found in this sequence — nothing to score.")
         return
 
-    n_sites = sum(1 for p in preds if p.is_site)
+    pred_seq = st.session_state.pred_seq
+    n_sites = sum(1 for p in preds if p.probability >= threshold)
     m1, m2, m3 = st.columns(3)
-    m1.metric("Sequence length", clean_len)
+    m1.metric("Sequence length", len(pred_seq))
     m2.metric("S/T/Y candidate sites", len(preds))
     m3.metric(f"Predicted phosphosites (≥{threshold:g})", n_sites)
 
     st.markdown("#### Sequence (predicted sites highlighted)")
-    st.markdown(_render_sequence("".join(c for c in seq.upper() if c.isalpha()), preds),
-                unsafe_allow_html=True)
+    st.markdown(_render_sequence(pred_seq, preds, threshold), unsafe_allow_html=True)
 
     st.markdown("#### Per-site predictions")
     df = pd.DataFrame(
@@ -144,7 +145,7 @@ def main():
                 "Position": p.position,
                 "Residue": p.residue,
                 "Probability": round(p.probability, 3),
-                "Prediction": "Phosphosite" if p.is_site else "—",
+                "Prediction": "Phosphosite" if p.probability >= threshold else "—",
             }
             for p in preds
         ]
