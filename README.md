@@ -29,14 +29,18 @@ this app makes the trained model something anyone can *use in the browser*.
 | Choice | Reason |
 |---|---|
 | **ONNX Runtime** (not PyTorch) | The model is exported to ONNX (1.67 MB) and served on CPU — lightweight, fast, cheap to host, and matches the paper's "green / deployable" claim. |
-| **Preprocessing mirrors training** | Same `WINDOW=31`, X-padding, and amino-acid vocabulary, so served predictions match the paper's scores exactly (verified: correlation 1.0000 vs saved test scores). |
+| **Preprocessing mirrors training** | Same `WINDOW=31`, X-padding, and amino-acid vocabulary, so the served model receives exactly the input representation it was trained on. |
 | **Occlusion, not gradients** | Explanations need no autodiff — pure ONNX inference — and reproduce the paper's deletion-test methodology. |
 
 ## The model
 
 - Lightweight 1D-CNN, **~0.44M params**, **1.67 MB**, CPU-only (~1 ms/site)
 - Trained on human S/T/Y sites (EPSD) with a **homology-controlled, leakage-free split**
-- Held-out **ROC-AUC ≈ 0.80**, **PR-AUC ≈ 0.80**, well-calibrated (ECE ≈ 0.014)
+  (19,625 proteins → 9,870 clusters at 30% identity), with site coordinates verified against
+  the UniProt residue
+- Held-out **ROC-AUC 0.769**, **PR-AUC 0.765**, well-calibrated (**ECE 0.015**) — under honest
+  homology control, which is why these are lower than the >0.85 usually reported for
+  phosphosite predictors
 
 > Research artifact & citation: **DOI 10.5281/zenodo.21290440**
 
